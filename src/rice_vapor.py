@@ -45,6 +45,9 @@ class RiceVapor:
         self.nz = nz
         self.obs_loc = np.zeros((num_obs, 3))
         self.qvapor = qvapor.isel(Time=time)[:,y,:].data.compute()
+        shape = self.qvapor.shape
+        self.y_grid = np.arange(shape[0])
+        self.x_grid = np.arange(shape[1])
 
         for i, w in enumerate(np.linspace(1, nx-1, num_obs, dtype=int)):
             self.obs_loc[i] = [w, y, z]
@@ -137,21 +140,12 @@ class RiceVapor:
             qvapor_integrations[i,:] = qvapor_integration
         self.qvapor_integrations = qvapor_integrations
 
-
-    # def plot_obs(self, plot_mod = 20):
-    #     self.plot_mod = plot_mod
-    #     if (self.obs_computed == False):
-    #         print("Cannot plot, obs have not been computed yet")
-
-
-
     def plot_obs_loc(self):
         for ob in self.obs_loc:
             plt.scatter(ob[0], ob[2])
         plt.ylim(0,self.nx)
         plt.ylim(0,self.nz)
         plt.show()
-
 
     def plot_obs_rays(self, mod=1):
         self.c = ['b', 'g', 'r', 'c', 'm', 'y', 'k']
@@ -180,3 +174,7 @@ class RiceVapor:
                           direction[0], direction[2],
                           angles='xy', scale=300,
                           color=self.c[j%self.c_len])
+
+    def plot_env(self):
+        X, Y = np.meshgrid(self.x_grid, self.y_grid)
+        plt.pcolormesh(X,Y,self.qvapor)
