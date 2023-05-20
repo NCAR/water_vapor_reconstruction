@@ -1,11 +1,13 @@
-import numpy as np
-import xarray as xr
+import math
 import matplotlib.pyplot as plt
+import numpy as np
+from scipy.integrate import simpson
+import xarray as xr
 
 
 class RiceVapor:
-    def __init__(self, qvapor, num_obs, y, z, dx, dy, dz):
-        self.set_domain(qvapor, num_obs, y, z, dx, dy, dz)
+    def __init__(self, qvapor, num_obs, y, z, nx, ny, nz):
+        self.set_domain(qvapor, num_obs, y, z, nx, ny, nz)
         # set defaults that will fail without being updated
         self.set_rays(0)
         self.set_target_window(-1, -1)
@@ -19,67 +21,162 @@ class RiceVapor:
             "  num_rays:      " + str(self.num_rays).rjust(rpad) + '\n' + \
             "  y:             " + str(self.y).rjust(rpad) + '\n' + \
             "  z:             " + str(self.z).rjust(rpad) + '\n' + \
-            "  dx:            " + str(self.dx).rjust(rpad) + '\n' + \
-            "  dy:            " + str(self.dy).rjust(rpad) + '\n' + \
-            "  dz:            " + str(self.dz).rjust(rpad) + '\n' + \
+            "  nx:            " + str(self.nx).rjust(rpad) + '\n' + \
+            "  ny:            " + str(self.ny).rjust(rpad) + '\n' + \
+            "  nz:            " + str(self.nz).rjust(rpad) + '\n' + \
             "  target_window: " + (str(self.target_x_start) + ', ' +
                                    str(self.target_x_end)).rjust(rpad)
         return(p_str)
 
 
-    def set_domain(self, qvapor, num_obs, y, z, dx, dy, dz, time=-1):
+
+
+    def len_of_line(self, x0, y0, z0, x1, y1, z1):
+        return math.sqrt((x1-x0)**2 + (y1-y0)**2 + (z1-z0)**2)
+
+
+
+    def set_domain(self, qvapor, num_obs, y, z, nx, ny, nz, time=-1):
         self.num_obs = num_obs
         self.y = y
         self.z = z
-        self.dx = dx
-        self.dy = dy
-        self.dz = dz
+        self.nx = nx
+        self.ny = ny
+        self.nz = nz
         self.obs_loc = np.zeros((num_obs, 3))
         self.qvapor = qvapor.isel(Time=time)[:,y,:].data.compute()
 
-        for i, w in enumerate(np.linspace(1, dx-1, num_obs, dtype=int)):
+        for i, w in enumerate(np.linspace(1, nx-1, num_obs, dtype=int)):
             self.obs_loc[i] = [w, y, z]
 
-    def set_rays(self, num_rays=10):
+    def set_rays(self, num_rays=9):
+        if num_rays%2 == 0: # this needs to be odd
+            num_rays -= 1
         self.num_rays = num_rays
 
     def set_target_window(self, target_x_start=10, target_x_end=20):
+        """
+        Target window is in the x-direction at height 0
+        """
         self.target_x_start = target_x_start
         self.target_x_end = target_x_end
 
-
-    def compute_obs(self, num_rays=10):
-        if self.num_rays == 0:
+    def set_num_rays(self, num_rays=9):
+        if num_rays <= 0:
+            print("warning: num_rays <= 0, defaulting to 9")
+            num_rays = 9
+        if num_rays%2 == 0: # this needs to be odd
+            num_rays -= 1
             self.num_rays = num_rays
+
+
+    def compute_ob(self, ob_location):
+        ob_x = int(ob_location[0])
+        ob_y = int(ob_location[1])
+        ob_z = int(ob_location[2])
+        qvapor_line = np.zeros((self.num_rays, self.max_ob_z+1))
+
+        # for every ray, find angle and length of ray
+        for j, x in enumerate(np.linspace(self.target_x_start,
+                                          self.target_x_end,
+                                          self.num_rays)):
+            destination = np.array([x, ob_y, 0])
+
+
+            direction = (destination - ob_location)
+            length = self.len_of_line(ob_location[0], ob_location[1], ob_location[2],
+                                      destination[0], destination[1], destination[2])
+            angle = np.arcsin(ob_z/length)* 180 / np.pi   # upper-left or angle, when past 90 upper-right
+
+
+            for i in range(ob_z+1):
+                #l_seg = i / math.sin(math.radians(a))
+                x_seg = i / math.tan(math.radians(angle))
+                if (direction[0] > 0):
+                    xx = round(x + x_seg)
+                else:
+                    xx = round(x - x_seg)
+                    zz = round(ob_z)
+                    qvapor_data = self.qvapor[zz,xx]
+                    # if j%plot_mod == 0:
+                    #     s = ax2.scatter(xx,zz,c=norm(qvapor_data), cmap='viridis',vmin=0, vmax=1, s=8)
+                    qvapor_line[j, i] = qvapor_data
+                    ob_z -= 1
+        return qvapor_line
+
+
+    def compute_obs(self, num_rays=9):
+        self.set_num_rays(num_rays)
         if self.target_x_start == -1 or self.target_x_end == -1:
             print('Error: target start and/or end are not set')
             return
         self.obs_computed = True
         qvapor_max = self.qvapor.max()
-        norm = plt.Normalize(vmin=0, vmax=qvapor_max)
-        sensor_max_height = int(max(self.obs_loc[:,2]))
-        qvapor_lines = np.zeros((self.num_rays, sensor_max_height))
-        angles = np.zeros(self.num_rays)
-        lengths = np.zeros(self.num_rays)
-        for ob in self.obs_loc:
-            h = int(ob[2]) # height of sensor
+        self.max_ob_z = int(max(self.obs_loc[:,2]))
+        self.norm = plt.Normalize(vmin=0, vmax=qvapor_max)
+        # sensor_max_height = int(max(self.obs_loc[:,2]))
+        # qvapor_lines = np.zeros((self.num_rays, sensor_max_height))
+        qvapor_lines = np.zeros((self.num_obs,
+                                 self.num_rays,
+                                 self.max_ob_z+1))
+        for i, ob_loc in enumerate(self.obs_loc):
+            # qvapor_line, length, angle = self.compute_ob(ob_loc)
+            qvapor_line = self.compute_ob(ob_loc)
+            qvapor_lines[i] = qvapor_line
+            # lengths[i] = length
+            # angles[i] = angle
+        self.qvapor_lines = qvapor_lines
+            # h = int(ob[2]) # height of sensor
+
+        # compute line integrals
+        qvapor_integrations = np.zeros((self.num_obs,self.num_rays))
+        qvapor_integration = np.zeros((self.num_rays))
+        for i in range(self.num_obs):
+            for j,line in enumerate(qvapor_lines[i,:]):
+                qvapor_integration[j] = simpson(line)
+            qvapor_integrations[i,:] = qvapor_integration
+        self.qvapor_integrations = qvapor_integrations
 
 
-
-    def plot_obs(self):
-        if (self.obs_computed == False):
-            print("Cannot plot, obs have not been computed yet")
+    # def plot_obs(self, plot_mod = 20):
+    #     self.plot_mod = plot_mod
+    #     if (self.obs_computed == False):
+    #         print("Cannot plot, obs have not been computed yet")
 
 
 
     def plot_obs_loc(self):
         for ob in self.obs_loc:
             plt.scatter(ob[0], ob[2])
-        plt.ylim(0,self.dx)
-        plt.ylim(0,self.dz)
+        plt.ylim(0,self.nx)
+        plt.ylim(0,self.nz)
         plt.show()
 
-    # def collect_obs()
 
-            # original sensor placement
-# sensor = np.array([round(width/2), north_south_loc, round(height*0.75)])
+    def plot_obs_rays(self, mod=1):
+        self.c = ['b', 'g', 'r', 'c', 'm', 'y', 'k']
+        self.c_len = len(self.c)
+        ax = plt.figure().add_subplot()#fc='g')
+        ax.set_xlim(0, self.nx)
+        ax.set_ylim(0, self.nz)
+
+        for i, ob_loc in enumerate(self.obs_loc):
+            if i%mod == 0:
+                self.plot_ob_ray(ob_loc, ax)
+        plt.show()
+
+    def plot_ob_ray(self, ob_location, ax):
+        ob_x = int(ob_location[0])
+        ob_y = int(ob_location[1])
+        ob_z = int(ob_location[2])
+
+        for j, x in enumerate(np.linspace(self.target_x_start,
+                                          self.target_x_end,
+                                          self.num_rays)):
+            destination = np.array([x, ob_y, 0])
+            direction = (destination - ob_location)
+
+            q = ax.quiver(ob_location[0], ob_location[2],
+                          direction[0], direction[2],
+                          angles='xy', scale=300,
+                          color=self.c[j%self.c_len])
