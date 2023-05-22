@@ -78,34 +78,37 @@ class RiceVapor:
         ob_y = int(ob_location[1])
         ob_z = int(ob_location[2])
         qvapor_line = np.zeros((self.num_rays, self.max_ob_z+1))
+        qvapor_x = np.zeros((self.num_rays, self.max_ob_z+1))
+        qvapor_z = np.zeros((self.num_rays, self.max_ob_z+1))
 
         # for every ray, find angle and length of ray
         for j, x in enumerate(np.linspace(self.target_x_start,
                                           self.target_x_end,
                                           self.num_rays)):
+            ob_z = int(ob_location[2])
             destination = np.array([x, ob_y, 0])
-
-
             direction = (destination - ob_location)
             length = self.len_of_line(ob_location[0], ob_location[1], ob_location[2],
                                       destination[0], destination[1], destination[2])
             angle = np.arcsin(ob_z/length)* 180 / np.pi   # upper-left or angle, when past 90 upper-right
 
 
-            for i in range(ob_z+1):
+            for i in range(ob_z):
                 #l_seg = i / math.sin(math.radians(a))
                 x_seg = i / math.tan(math.radians(angle))
                 if (direction[0] > 0):
-                    xx = round(x + x_seg)
+                    xx = round(ob_x + x_seg)
                 else:
-                    xx = round(x - x_seg)
-                    zz = round(ob_z)
-                    qvapor_data = self.qvapor[zz,xx]
-                    # if j%plot_mod == 0:
-                    #     s = ax2.scatter(xx,zz,c=norm(qvapor_data), cmap='viridis',vmin=0, vmax=1, s=8)
-                    qvapor_line[j, i] = qvapor_data
-                    ob_z -= 1
-        return qvapor_line
+                    xx = round(ob_x - x_seg)
+                zz = round(ob_z)
+                qvapor_data = self.qvapor[zz,xx]
+                # if j%plot_mod == 0:
+                #     s = ax2.scatter(xx,zz,c=norm(qvapor_data), cmap='viridis',vmin=0, vmax=1, s=8)
+                qvapor_line[j, i] = qvapor_data
+                qvapor_x[j, i] = xx
+                qvapor_z[j, i] = zz
+                ob_z -= 1
+        return qvapor_line, qvapor_x, qvapor_z
 
 
     def compute_obs(self, num_rays=9):
@@ -122,13 +125,23 @@ class RiceVapor:
         qvapor_lines = np.zeros((self.num_obs,
                                  self.num_rays,
                                  self.max_ob_z+1))
+        qvapor_x = np.zeros((self.num_obs,
+                                 self.num_rays,
+                                 self.max_ob_z+1))
+        qvapor_z = np.zeros((self.num_obs,
+                                 self.num_rays,
+                                 self.max_ob_z+1))
         for i, ob_loc in enumerate(self.obs_loc):
             # qvapor_line, length, angle = self.compute_ob(ob_loc)
-            qvapor_line = self.compute_ob(ob_loc)
+            qvapor_line, qv_x, qv_z = self.compute_ob(ob_loc)
             qvapor_lines[i] = qvapor_line
+            qvapor_x[i] = qv_x
+            qvapor_z[i] = qv_z
             # lengths[i] = length
             # angles[i] = angle
         self.qvapor_lines = qvapor_lines
+        self.qvapor_x = qvapor_x
+        self.qvapor_z = qvapor_z
             # h = int(ob[2]) # height of sensor
 
         # compute line integrals
@@ -174,6 +187,24 @@ class RiceVapor:
                           direction[0], direction[2],
                           angles='xy', scale=300,
                           color=self.c[j%self.c_len])
+
+
+    def plot_obs(self, ray_mod=-1, z_mod=4):
+        if (ray_mod == -1):
+            if (self.num_rays > 5):
+                ray_mod = round(self.num_rays / 5)
+
+        ax = plt.figure().add_subplot()
+        for ob in range(self.num_obs):
+            for ray in range(self.num_rays):
+                for z in range(len(self.qvapor_lines[ob,ray,:])):
+                    if (ray%ray_mod == 0 and z%z_mod == 0):
+                        ax.scatter(self.qvapor_x[ob,ray,z],
+                                   self.qvapor_z[ob,ray,z],
+                                   c=self.norm(self.qvapor_lines[ob,ray,z]),
+                                   cmap='viridis',vmin=0, vmax=1, s=8)
+        plt.show()
+
 
     def plot_env(self):
         X, Y = np.meshgrid(self.x_grid, self.y_grid)
