@@ -6,10 +6,10 @@ import xarray as xr
 
 
 class RiceVapor:
-    def __init__(self, qvapor, num_obs, y, z, nx, ny, nz):
-        self.set_domain(qvapor, num_obs, y, z, nx, ny, nz)
+    def __init__(self, qvapor, num_obs, y, z, num_rays=0):
+        self.set_domain(qvapor, num_obs, y, z)
         # set defaults that will fail without being updated
-        self.set_rays(0)
+        self.set_rays(num_rays)
         self.set_target_window(-1, -1)
         self.obs_computed = False
 
@@ -25,52 +25,70 @@ class RiceVapor:
             "  ny:            " + str(self.ny).rjust(rpad) + '\n' + \
             "  nz:            " + str(self.nz).rjust(rpad) + '\n' + \
             "  target_window: " + (str(self.target_x_start) + ', ' +
-                                   str(self.target_x_end)).rjust(rpad)
+                                   str(self.target_x_end)).rjust(rpad) + \
+                                   '\n' + \
+            "  target_window: " + (str(self.target_window)).rjust(rpad)
         return(p_str)
-
-
 
 
     def len_of_line(self, x0, y0, z0, x1, y1, z1):
         return math.sqrt((x1-x0)**2 + (y1-y0)**2 + (z1-z0)**2)
 
 
-
-    def set_domain(self, qvapor, num_obs, y, z, nx, ny, nz, time=-1):
+    def set_domain(self, qvapor, num_obs, y, z, time=-1):
         self.num_obs = num_obs
         self.y = y
         self.z = z
-        self.nx = nx
-        self.ny = ny
-        self.nz = nz
+        qvapor_shape = qvapor.shape
+        self.nx = qvapor_shape[2]
+        self.ny = qvapor_shape[1]
+        self.nz = qvapor_shape[0]
         self.obs_loc = np.zeros((num_obs, 3))
-        self.qvapor = qvapor.isel(Time=time)[:,y,:].data.compute()
+        self.qvapor = qvapor[:,y,:]
         shape = self.qvapor.shape
         self.y_grid = np.arange(shape[0])
         self.x_grid = np.arange(shape[1])
 
-        for i, w in enumerate(np.linspace(1, nx-1, num_obs, dtype=int)):
+        for i, w in enumerate(np.linspace(1, self.nx-1, num_obs, dtype=int)):
             self.obs_loc[i] = [w, y, z]
+
 
     def set_rays(self, num_rays=9):
         if num_rays%2 == 0: # this needs to be odd
             num_rays -= 1
         self.num_rays = num_rays
 
+
+    def get_target_window(self):
+        return self.target_x_start, self.target_x_end
+    def get_target_end(self):
+        return self.target_x_end
+    def get_target_start(self):
+        return self.target_x_start
+
+
     def set_target_window(self, target_x_start=10, target_x_end=20):
         """
         Target window is in the x-direction at height 0
         """
+        if (target_x_start > target_x_end):
+            print('Error: target target start must be less than target end')
+            return
         self.target_x_start = target_x_start
         self.target_x_end = target_x_end
+        self.target_size = target_x_end - target_x_start + 1
 
-    def set_num_rays(self, num_rays=9):
-        if num_rays <= 0:
-            print("warning: num_rays <= 0, defaulting to 9")
-            num_rays = 9
+
+    def set_num_rays(self, num_rays):
+        if num_rays == None and self.num_rays <= 0:
+            print("warning: num_rays <= 0, defaulting to target size",
+                  self.target_size, "if odd")
+            num_rays = self.target_size
+        if num_rays == None:
+            return
         if num_rays%2 == 0: # this needs to be odd
             num_rays -= 1
-            self.num_rays = num_rays
+        self.num_rays = num_rays
 
 
     def compute_ob(self, ob_location):
@@ -80,6 +98,8 @@ class RiceVapor:
         qvapor_line = np.zeros((self.num_rays, self.max_ob_z+1))
         qvapor_x = np.zeros((self.num_rays, self.max_ob_z+1))
         qvapor_z = np.zeros((self.num_rays, self.max_ob_z+1))
+        angles = np.zeros(self.num_rays)
+        lengths = np.zeros(self.num_rays)
 
         # for every ray, find angle and length of ray
         for j, x in enumerate(np.linspace(self.target_x_start,
@@ -91,7 +111,8 @@ class RiceVapor:
             length = self.len_of_line(ob_location[0], ob_location[1], ob_location[2],
                                       destination[0], destination[1], destination[2])
             angle = np.arcsin(ob_z/length)* 180 / np.pi   # upper-left or angle, when past 90 upper-right
-
+            lengths[j] = length
+            angles[j] = angle
 
             for i in range(ob_z):
                 #l_seg = i / math.sin(math.radians(a))
@@ -108,14 +129,17 @@ class RiceVapor:
                 qvapor_x[j, i] = xx
                 qvapor_z[j, i] = zz
                 ob_z -= 1
-        return qvapor_line, qvapor_x, qvapor_z
+        return qvapor_line, qvapor_x, qvapor_z, lengths, angles
 
 
-    def compute_obs(self, num_rays=9):
-        self.set_num_rays(num_rays)
+    def compute_obs(self, num_rays=None):
         if self.target_x_start == -1 or self.target_x_end == -1:
             print('Error: target start and/or end are not set')
             return
+        # if num_rays == None, defaults to target size
+        self.set_num_rays(num_rays)
+        num_rays = self.num_rays
+
         self.obs_computed = True
         qvapor_max = self.qvapor.max()
         self.max_ob_z = int(max(self.obs_loc[:,2]))
@@ -131,17 +155,23 @@ class RiceVapor:
         qvapor_z = np.zeros((self.num_obs,
                                  self.num_rays,
                                  self.max_ob_z+1))
+        ray_lengths = np.zeros((self.num_obs,
+                                self.num_rays))
+        ray_angles = np.zeros((self.num_obs,
+                               self.num_rays))
         for i, ob_loc in enumerate(self.obs_loc):
             # qvapor_line, length, angle = self.compute_ob(ob_loc)
-            qvapor_line, qv_x, qv_z = self.compute_ob(ob_loc)
-            qvapor_lines[i] = qvapor_line
-            qvapor_x[i] = qv_x
-            qvapor_z[i] = qv_z
+            qvapor_lines[i], qvapor_x[i], qvapor_z[i], ray_lengths[i], \
+                ray_angles[i] = self.compute_ob(ob_loc)
+
+
             # lengths[i] = length
             # angles[i] = angle
         self.qvapor_lines = qvapor_lines
         self.qvapor_x = qvapor_x
         self.qvapor_z = qvapor_z
+        self.ray_lengths = ray_lengths
+        self.ray_angles = ray_angles
             # h = int(ob[2]) # height of sensor
 
         # compute line integrals
@@ -168,11 +198,10 @@ class RiceVapor:
         ax.set_ylim(0, self.nz)
 
         for i, ob_loc in enumerate(self.obs_loc):
-            if i%mod == 0:
-                self.plot_ob_ray(ob_loc, ax)
+            self.plot_ob_ray(ob_loc, ax, mod)
         plt.show()
 
-    def plot_ob_ray(self, ob_location, ax):
+    def plot_ob_ray(self, ob_location, ax, mod):
         ob_x = int(ob_location[0])
         ob_y = int(ob_location[1])
         ob_z = int(ob_location[2])
@@ -182,11 +211,11 @@ class RiceVapor:
                                           self.num_rays)):
             destination = np.array([x, ob_y, 0])
             direction = (destination - ob_location)
-
-            q = ax.quiver(ob_location[0], ob_location[2],
-                          direction[0], direction[2],
-                          angles='xy', scale=300,
-                          color=self.c[j%self.c_len])
+            if (j%mod == 0):
+                q = ax.quiver(ob_location[0], ob_location[2],
+                              direction[0], direction[2],
+                              angles='xy', scale=300,
+                              color=self.c[j%self.c_len])
 
 
     def plot_obs(self, ray_mod=-1, z_mod=4):
@@ -209,3 +238,7 @@ class RiceVapor:
     def plot_env(self):
         X, Y = np.meshgrid(self.x_grid, self.y_grid)
         plt.pcolormesh(X,Y,self.qvapor)
+        plt.colorbar()
+        plt.show()
+
+    # def save_obs(self):
