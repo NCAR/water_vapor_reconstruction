@@ -13,7 +13,6 @@ class RiceVapor:
         self.set_target_window(-1, -1)
         self.obs_computed = False
 
-
     def __repr__(self):
         rpad = 10
         p_str = 'Properties\n' + \
@@ -30,6 +29,15 @@ class RiceVapor:
             "  target_window: " + (str(self.target_window)).rjust(rpad)
         return(p_str)
 
+
+    def copy_rv_setup(self, rv):
+        self.ray_angles = rv.ray_angles
+        self.num_rays = rv.num_rays
+        self.target_x_start = rv.target_x_start
+        self.target_x_end = rv.target_x_end
+        self.max_ob_z = rv.max_ob_z
+        self.norm = rv.norm
+        self.obs_computed = True
 
     def len_of_line(self, x0, y0, z0, x1, y1, z1):
         return math.sqrt((x1-x0)**2 + (y1-y0)**2 + (z1-z0)**2)
@@ -77,6 +85,7 @@ class RiceVapor:
         self.target_x_start = target_x_start
         self.target_x_end = target_x_end
         self.target_size = target_x_end - target_x_start + 1
+        self.obs_computed = False
 
 
     def set_num_rays(self, num_rays):
@@ -90,11 +99,33 @@ class RiceVapor:
             num_rays -= 1
         self.num_rays = num_rays
 
+    def compute_ob_line(self, ob_i, ob_location):
+        ob_x = int(ob_location[0])
+        ob_z = int(ob_location[2])
+        qvapor_line = np.zeros((self.num_rays, self.max_ob_z+1))
+        # for every ray, find angle and length of ray
+        for j, x in enumerate(np.linspace(self.target_x_start,
+                                          self.target_x_end,
+                                          self.num_rays)):
+            direction = x - ob_x
+            angle = self.ray_angles[ob_i,j]
+            for i in range(ob_z):
+                x_seg = i / math.tan(math.radians(angle))
+                if (direction > 0):
+                    xx = round(ob_x + x_seg)
+                else:
+                    xx = round(ob_x - x_seg)
+                zz = round(ob_z)
+                qvapor_line[j, i] = self.qvapor[zz,xx]
+                ob_z -= 1
+        return qvapor_line
 
-    def compute_ob(self, ob_location):
+
+    def compute_ob(self, ob_i, ob_location):
         ob_x = int(ob_location[0])
         ob_y = int(ob_location[1])
         ob_z = int(ob_location[2])
+
         qvapor_line = np.zeros((self.num_rays, self.max_ob_z+1))
         qvapor_x = np.zeros((self.num_rays, self.max_ob_z+1))
         qvapor_z = np.zeros((self.num_rays, self.max_ob_z+1))
@@ -105,7 +136,6 @@ class RiceVapor:
         for j, x in enumerate(np.linspace(self.target_x_start,
                                           self.target_x_end,
                                           self.num_rays)):
-            ob_z = int(ob_location[2])
             destination = np.array([x, ob_y, 0])
             direction = (destination - ob_location)
             length = self.len_of_line(ob_location[0], ob_location[1], ob_location[2],
@@ -132,47 +162,46 @@ class RiceVapor:
         return qvapor_line, qvapor_x, qvapor_z, lengths, angles
 
 
-    def compute_obs(self, num_rays=None):
+    def compute_obs(self):
         if self.target_x_start == -1 or self.target_x_end == -1:
             print('Error: target start and/or end are not set')
             return
-        # if num_rays == None, defaults to target size
-        self.set_num_rays(num_rays)
-        num_rays = self.num_rays
 
-        self.obs_computed = True
-        qvapor_max = self.qvapor.max()
-        self.max_ob_z = int(max(self.obs_loc[:,2]))
-        self.norm = plt.Normalize(vmin=0, vmax=qvapor_max)
-        # sensor_max_height = int(max(self.obs_loc[:,2]))
-        # qvapor_lines = np.zeros((self.num_rays, sensor_max_height))
+        if self.obs_computed == False:
+            qvapor_max = self.qvapor.max()
+            self.max_ob_z = int(max(self.obs_loc[:,2]))
+            self.norm = plt.Normalize(vmin=0, vmax=qvapor_max)
+            # sensor_max_height = int(max(self.obs_loc[:,2]))
+            # qvapor_lines = np.zeros((self.num_rays, sensor_max_height))
+            qvapor_x = np.zeros((self.num_obs,
+                                 self.num_rays,
+                                 self.max_ob_z+1))
+            qvapor_z = np.zeros((self.num_obs,
+                                 self.num_rays,
+                                 self.max_ob_z+1))
+            ray_lengths = np.zeros((self.num_obs,
+                                    self.num_rays))
+            ray_angles = np.zeros((self.num_obs,
+                                   self.num_rays))
+
         qvapor_lines = np.zeros((self.num_obs,
                                  self.num_rays,
                                  self.max_ob_z+1))
-        qvapor_x = np.zeros((self.num_obs,
-                                 self.num_rays,
-                                 self.max_ob_z+1))
-        qvapor_z = np.zeros((self.num_obs,
-                                 self.num_rays,
-                                 self.max_ob_z+1))
-        ray_lengths = np.zeros((self.num_obs,
-                                self.num_rays))
-        ray_angles = np.zeros((self.num_obs,
-                               self.num_rays))
-        for i, ob_loc in enumerate(self.obs_loc):
-            # qvapor_line, length, angle = self.compute_ob(ob_loc)
-            qvapor_lines[i], qvapor_x[i], qvapor_z[i], ray_lengths[i], \
-                ray_angles[i] = self.compute_ob(ob_loc)
 
-
-            # lengths[i] = length
-            # angles[i] = angle
+        if self.obs_computed == False:
+            print("- first compute, angles being saved for future computation")
+            for i, ob_loc in enumerate(self.obs_loc):
+                qvapor_lines[i], qvapor_x[i], qvapor_z[i], ray_lengths[i], \
+                    ray_angles[i] = self.compute_ob(i, ob_loc)
+            self.qvapor_x = qvapor_x
+            self.qvapor_z = qvapor_z
+            self.ray_lengths = ray_lengths
+            self.ray_angles = ray_angles
+            self.obs_computed = True
+        else:
+            for i, ob_loc in enumerate(self.obs_loc):
+                qvapor_lines[i] = self.compute_ob_line(i, ob_loc)
         self.qvapor_lines = qvapor_lines
-        self.qvapor_x = qvapor_x
-        self.qvapor_z = qvapor_z
-        self.ray_lengths = ray_lengths
-        self.ray_angles = ray_angles
-            # h = int(ob[2]) # height of sensor
 
         # compute line integrals
         qvapor_integrations = np.zeros((self.num_obs,self.num_rays))
