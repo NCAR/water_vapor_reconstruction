@@ -101,12 +101,12 @@ class RiceVapor:
 
     def compute_ob_line(self, ob_i, ob_location):
         ob_x = int(ob_location[0])
-        ob_z = int(ob_location[2])
         qvapor_line = np.zeros((self.num_rays, self.max_ob_z+1))
         # for every ray, find angle and length of ray
         for j, x in enumerate(np.linspace(self.target_x_start,
                                           self.target_x_end,
                                           self.num_rays)):
+            ob_z = int(ob_location[2])
             direction = x - ob_x
             angle = self.ray_angles[ob_i,j]
             for i in range(ob_z):
@@ -124,7 +124,6 @@ class RiceVapor:
     def compute_ob(self, ob_i, ob_location):
         ob_x = int(ob_location[0])
         ob_y = int(ob_location[1])
-        ob_z = int(ob_location[2])
 
         qvapor_line = np.zeros((self.num_rays, self.max_ob_z+1))
         qvapor_x = np.zeros((self.num_rays, self.max_ob_z+1))
@@ -136,6 +135,7 @@ class RiceVapor:
         for j, x in enumerate(np.linspace(self.target_x_start,
                                           self.target_x_end,
                                           self.num_rays)):
+            ob_z = int(ob_location[2])
             destination = np.array([x, ob_y, 0])
             direction = (destination - ob_location)
             length = self.len_of_line(ob_location[0], ob_location[1], ob_location[2],
