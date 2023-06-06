@@ -2,12 +2,13 @@ import math
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.integrate import simpson
+from skimage.transform import resize
 import xarray as xr
 
 
 class RiceVapor:
-    def __init__(self, qvapor, num_obs, y, z, num_rays=0):
-        self.set_domain(qvapor, num_obs, y, z)
+    def __init__(self, qvapor, num_obs, z, y=0, time=-1, num_rays=0):
+        self.set_domain(qvapor, num_obs, z, y, time)
         # set defaults that will fail without being updated
         self.set_rays(num_rays)
         self.set_target_window(-1, -1)
@@ -42,20 +43,34 @@ class RiceVapor:
     def len_of_line(self, x0, y0, z0, x1, y1, z1):
         return math.sqrt((x1-x0)**2 + (y1-y0)**2 + (z1-z0)**2)
 
+    def prep_domain_input(self, qvapor, y, time):
+        qvapor_t = type(qvapor)
+        if qvapor_t == 'xarray.core.dataset.Dataset':
+            qvapor = qvapor['QVAPOR'].isel(Time=time).data.compute()
+        elif qvapor_t == 'xarray.core.dataarray.DataArray':
+            if 'Time' in qvapor.dims:
+                qvapor = qvapor.isel(Time=time).data.compute()
 
-    def set_domain(self, qvapor, num_obs, y, z, time=-1):
+        if len(qvapor.shape) == 3:
+            qvapor = qvapor[:,y,:]
+        return qvapor
+
+    def set_domain(self, qvapor, num_obs, z, y, time):
+        self.qvapor = self.prep_domain_input(qvapor, y, time)
         self.num_obs = num_obs
         self.y = y
         self.z = z
-        qvapor_shape = qvapor.shape
-        self.nx = qvapor_shape[2]
-        self.ny = qvapor_shape[1]
-        self.nz = qvapor_shape[0]
+        qvapor_shape = self.qvapor.shape
+        if (len(qvapor_shape) == 3):
+            self.nx = qvapor_shape[2]
+            self.ny = qvapor_shape[1]
+            self.nz = qvapor_shape[0]
+        elif (len(qvapor_shape) == 2):
+            self.nx = qvapor_shape[1]
+            self.nz = qvapor_shape[0]
+        self.y_grid = np.arange(self.qvapor.shape[0])
+        self.x_grid = np.arange(self.qvapor.shape[1])
         self.obs_loc = np.zeros((num_obs, 3))
-        self.qvapor = qvapor[:,y,:]
-        shape = self.qvapor.shape
-        self.y_grid = np.arange(shape[0])
-        self.x_grid = np.arange(shape[1])
 
         for i, w in enumerate(np.linspace(1, self.nx-1, num_obs, dtype=int)):
             self.obs_loc[i] = [w, y, z]
@@ -264,9 +279,31 @@ class RiceVapor:
         plt.show()
 
 
-    def plot_env(self):
-        X, Y = np.meshgrid(self.x_grid, self.y_grid)
-        plt.pcolormesh(X,Y,self.qvapor)
+    def plot_env(self, mod=1):
+        if mod == 1:
+            X, Y = np.meshgrid(self.x_grid, self.y_grid)
+            plt.pcolormesh(X,Y,self.qvapor)
+        else:
+            old_qv_shape = self.qvapor.shape
+            x_fix = 0 if (int(old_qv_shape[0]/mod)%2 == 0) else 1
+            y_fix = 0 if (int(old_qv_shape[1]/mod)%2 == 0) else 1
+            qv_shape = (int(old_qv_shape[0]/mod)-x_fix,
+                        int(old_qv_shape[1]/mod)-y_fix)
+            y_grid = np.arange(qv_shape[0])
+            x_grid = np.arange(qv_shape[1])
+            X, Y = np.meshgrid(x_grid, y_grid)
+            if (x_fix == 1 and y_fix == 1):
+                qvapor_data = self.qvapor[:-x_fix,:-y_fix]
+            elif (x_fix == 1):
+                qvapor_data = self.qvapor[:-x_fix,:]
+            elif (y_fix == 1):
+                qvapor_data = self.qvapor[:,:-y_fix]
+            else:
+                qvapor_data = self.qvapor[:,:]
+
+            downscaled = resize( qvapor_data,
+                                (qv_shape[0], qv_shape[1]))
+            plt.pcolormesh(X,Y,downscaled)
         plt.colorbar()
         plt.show()
 
