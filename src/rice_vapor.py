@@ -7,12 +7,30 @@ import xarray as xr
 
 
 class RiceVapor:
+    """
+    A class used to hold an object for calculating water vapor line integrals
+    from model data to test reproduction.
+    """
+
     def __init__(self, qvapor, num_obs, z, y=0, time=-1, num_rays=0):
+        """
+        Parameters
+        ----------
+        qvapor: 2 dimensional input water vapor field
+        num_obs: number of observation points from above
+        z: height of observations
+        y: (default is 0)
+        time: time step to retrieve input from dataset or dataarray
+              (default is -1)
+        num_rays: (default is 0)
+        """
         self.set_domain(qvapor, num_obs, z, y, time)
         # set defaults that will fail without being updated
         self.set_rays(num_rays)
-        self.set_target_window(-1, -1)
+        self.set_target_window(0, self.nx-1)
+        self.plot_width = 6.0
         self.obs_computed = False
+        self.solution_set = False
 
     def __repr__(self):
         rpad = 10
@@ -25,9 +43,9 @@ class RiceVapor:
             "  ny:            " + str(self.ny).rjust(rpad) + '\n' + \
             "  nz:            " + str(self.nz).rjust(rpad) + '\n' + \
             "  target_window: " + (str(self.target_x_start) + ', ' +
-                                   str(self.target_x_end)).rjust(rpad) + \
-                                   '\n' + \
-            "  target_window: " + (str(self.target_window)).rjust(rpad)
+                                   str(self.target_x_end)).rjust(rpad) #+ \
+                                   # '\n' + \
+            # "  target_window: " + (str(self.target_window)).rjust(rpad)
         return(p_str)
 
 
@@ -44,14 +62,20 @@ class RiceVapor:
         return math.sqrt((x1-x0)**2 + (y1-y0)**2 + (z1-z0)**2)
 
     def prep_domain_input(self, qvapor, y, time):
-        qvapor_t = type(qvapor)
-        if qvapor_t == 'xarray.core.dataset.Dataset':
-            qvapor = qvapor['QVAPOR'].isel(Time=time).data.compute()
-        elif qvapor_t == 'xarray.core.dataarray.DataArray':
+        qvapor_shape = [len(qvapor[var]) for var in qvapor.dims]
+        qvapor_t = str(type(qvapor))
+
+        if 'xarray.core.dataset.Dataset' in qvapor_t:
+            if (len(qvapor_shape) == 2):
+                qvapor = qvapor['QVAPOR'].data.compute()
+            else:
+                qvapor = qvapor['QVAPOR'].isel(Time=time).data.compute()
+        elif 'xarray.core.dataarray.DataArray' in qvapor_t:
             if 'Time' in qvapor.dims:
                 qvapor = qvapor.isel(Time=time).data.compute()
 
-        if len(qvapor.shape) == 3:
+        self.qvapor_shape = qvapor_shape
+        if len(qvapor_shape) == 3:
             qvapor = qvapor[:,y,:]
         return qvapor
 
@@ -60,16 +84,17 @@ class RiceVapor:
         self.num_obs = num_obs
         self.y = y
         self.z = z
-        qvapor_shape = self.qvapor.shape
+        qvapor_shape = self.qvapor_shape
         if (len(qvapor_shape) == 3):
             self.nx = qvapor_shape[2]
             self.ny = qvapor_shape[1]
             self.nz = qvapor_shape[0]
         elif (len(qvapor_shape) == 2):
             self.nx = qvapor_shape[1]
+            self.ny = 0
             self.nz = qvapor_shape[0]
-        self.y_grid = np.arange(self.qvapor.shape[0])
-        self.x_grid = np.arange(self.qvapor.shape[1])
+        self.y_grid = np.arange(qvapor_shape[0])
+        self.x_grid = np.arange(qvapor_shape[1])
         self.obs_loc = np.zeros((num_obs, 3))
 
         for i, w in enumerate(np.linspace(1, self.nx-1, num_obs, dtype=int)):
@@ -115,8 +140,10 @@ class RiceVapor:
         self.num_rays = num_rays
 
     def compute_ob_line(self, ob_i, ob_location):
+        # print("COMPUTE_OB_LINE():121")
         ob_x = int(ob_location[0])
         qvapor_line = np.zeros((self.num_rays, self.max_ob_z+1))
+        # print("QVAPORLINESHAPE", qvapor_line.shape)
         # for every ray, find angle and length of ray
         for j, x in enumerate(np.linspace(self.target_x_start,
                                           self.target_x_end,
@@ -131,6 +158,8 @@ class RiceVapor:
                 else:
                     xx = round(ob_x - x_seg)
                 zz = round(ob_z)
+                # print("qvapor shape", self.qvapor.shape, "zz", zz, "xx", xx)
+                # print("qvapor_line shape", qvapor_line.shape, "j", j, "i", i)
                 qvapor_line[j, i] = self.qvapor[zz,xx]
                 ob_z -= 1
         return qvapor_line
@@ -181,7 +210,7 @@ class RiceVapor:
         if self.target_x_start == -1 or self.target_x_end == -1:
             print('Error: target start and/or end are not set')
             return
-
+        # print("RV1")
         if self.obs_computed == False:
             qvapor_max = self.qvapor.max()
             self.max_ob_z = int(max(self.obs_loc[:,2]))
@@ -198,11 +227,11 @@ class RiceVapor:
                                     self.num_rays))
             ray_angles = np.zeros((self.num_obs,
                                    self.num_rays))
-
+        # print("RV2")
         qvapor_lines = np.zeros((self.num_obs,
                                  self.num_rays,
                                  self.max_ob_z+1))
-
+        # print("RV3")
         if self.obs_computed == False:
             print("- first compute, angles being saved for future computation")
             for i, ob_loc in enumerate(self.obs_loc):
@@ -216,16 +245,20 @@ class RiceVapor:
         else:
             for i, ob_loc in enumerate(self.obs_loc):
                 qvapor_lines[i] = self.compute_ob_line(i, ob_loc)
+        # print("RV4")
         self.qvapor_lines = qvapor_lines
-
+        # print("RV5")
         # compute line integrals
         qvapor_integrations = np.zeros((self.num_obs,self.num_rays))
         qvapor_integration = np.zeros((self.num_rays))
+        # print("RV6")
         for i in range(self.num_obs):
             for j,line in enumerate(qvapor_lines[i,:]):
                 qvapor_integration[j] = simpson(line)
             qvapor_integrations[i,:] = qvapor_integration
-        self.qvapor_integrations = qvapor_integrations
+        # print("RV7")
+        # self.qvapor_integrations = qvapor_integrations
+        self.qvapor_mean_integration = np.mean(qvapor_integrations, axis=0)
 
     def plot_obs_loc(self):
         for ob in self.obs_loc:
@@ -234,7 +267,7 @@ class RiceVapor:
         plt.ylim(0,self.nz)
         plt.show()
 
-    def plot_obs_rays(self, mod=1):
+    def plot_obs_rays(self, obs_mod=1, ray_mod=1):
         self.c = ['b', 'g', 'r', 'c', 'm', 'y', 'k']
         self.c_len = len(self.c)
         ax = plt.figure().add_subplot()#fc='g')
@@ -242,10 +275,11 @@ class RiceVapor:
         ax.set_ylim(0, self.nz)
 
         for i, ob_loc in enumerate(self.obs_loc):
-            self.plot_ob_ray(ob_loc, ax, mod)
+            if (i%obs_mod == 0):
+                self.plot_ob_ray(i, ob_loc, ax, ray_mod)
         plt.show()
 
-    def plot_ob_ray(self, ob_location, ax, mod):
+    def plot_ob_ray(self, i, ob_location, ax, ray_mod):
         ob_x = int(ob_location[0])
         ob_y = int(ob_location[1])
         ob_z = int(ob_location[2])
@@ -254,24 +288,19 @@ class RiceVapor:
                                           self.target_x_end,
                                           self.num_rays)):
             destination = np.array([x, ob_y, 0])
-            direction = (destination - ob_location)
-            if (j%mod == 0):
-                q = ax.quiver(ob_location[0], ob_location[2],
-                              direction[0], direction[2],
-                              angles='xy', scale=300,
-                              color=self.c[j%self.c_len])
+            # direction = (destination - ob_location)
+            X = [ob_location[0], destination[0]]
+            Y = [ob_location[2], destination[2]]
+            if (j%ray_mod == 0):
+                q = ax.plot(X, Y, color=self.c[i%self.c_len])
 
 
-    def plot_obs(self, ray_mod=-1, z_mod=4):
-        if (ray_mod == -1):
-            if (self.num_rays > 5):
-                ray_mod = round(self.num_rays / 5)
-
+    def plot_obs(self, ob_mod=1, ray_mod=1, z_mod=4):
         ax = plt.figure().add_subplot()
         for ob in range(self.num_obs):
             for ray in range(self.num_rays):
                 for z in range(len(self.qvapor_lines[ob,ray,:])):
-                    if (ray%ray_mod == 0 and z%z_mod == 0):
+                    if (ob%ob_mod == 0 and ray%ray_mod == 0 and z%z_mod == 0):
                         ax.scatter(self.qvapor_x[ob,ray,z],
                                    self.qvapor_z[ob,ray,z],
                                    c=self.norm(self.qvapor_lines[ob,ray,z]),
@@ -279,10 +308,88 @@ class RiceVapor:
         plt.show()
 
 
+    def set_solution(self, solution, method, tol, mod, total_t, var='QVAPOR',
+                     env_south_north = 0, anomaly_mean_base = None):
+        self.solution_set = True
+        self.solution_iter = solution['nfev']
+        self.solution_method = method
+        self.solution_tol = tol
+        leading_zeros = int("{:.2e}".format(tol)[-2:])
+        self.solution_tol_s = f'{{:.{leading_zeros}f}}'.format(tol)
+        self.solution_mod = mod
+
+        crs_nx = round(self.nx / mod)
+        crs_nz = round(self.z / mod)
+        data = solution['x'].reshape(crs_nz, crs_nx)
+        if anomaly_mean_base is not None:
+            data += anomaly_mean_base
+        coords={'crs_x': np.arange(0,crs_nx),
+                'crs_z': np.arange(0,crs_nz)}
+        da = xr.DataArray(data, coords=coords, dims=['crs_z','crs_x'])
+
+        ds = xr.Dataset({var: da})
+        ds.attrs['nx'] = self.nx
+        ds.attrs['nz'] = self.nz
+        ds.attrs['crs_nx'] = crs_nx
+        ds.attrs['crs_nz'] = crs_nz
+        ds.attrs['crs_mod'] = mod
+        ds.attrs['num_obs'] = self.num_obs
+        ds.attrs['total_t'] = total_t
+        ds.attrs['env_south_north'] = env_south_north
+        f_name = 'rv_'+\
+            self.solution_method+'_'+\
+            str(self.solution_mod)+'mod_'+\
+            self.solution_tol_s+'tol_'+\
+            str(self.solution_iter)+'iter.nc'
+        self.solution = ds
+        self.solution_filename = f_name
+
+
+    def save_solution(self, var='QVAPOR'):
+        print("saving to", self.solution_filename)
+        self.solution[var].to_netcdf(self.solution_filename)
+        # what do we want output to look like?
+        # netcdf,
+        # - with real rv?
+        # - guess
+
+
+    def plot_solution(self, var='QVAPOR', qv_max = None):
+        if self.solution_set == False:
+            print("Warning: solution not set")
+            return
+
+        if qv_max == None:
+            qv_max = self.qvapor.max()
+        # qv_sol = self.solution
+        # if (len(qv_sol.shape) == 3):
+        #     qv_sol = qv_sol[:,0,:]
+        # # width = 6.0  # Width in inches
+        # # Calculate the corresponding figure height while maintaining the aspect ratio
+        var_shape = self.solution[var].shape
+        aspect_ratio = var_shape[0] / var_shape[1]
+        # # height = width * aspect_ratio
+        fig, ax = plt.subplots(figsize=plt.figaspect(aspect_ratio))
+        # # tw=self.get_target_window()
+        # # plt.xlim(tw[0],tw[1])
+        # # plt.ylim(0,self.nz)
+        self.solution[var].plot(ax=ax, vmax=qv_max)
+        plt.title(self.solution_method)
+        # plt.imshow(qv_sol[:,:], origin='lower', aspect='auto')
+        # plt.colorbar()
+        plt.show()
+
+
+
+
     def plot_env(self, mod=1):
+        # width = 6.0  # Width in inches
+        # Calculate the corresponding figure height while maintaining the aspect ratio
+        aspect_ratio = self.qvapor.shape[0] / self.qvapor.shape[1]
+        # height = width * aspect_ratio
+        fig, ax = plt.subplots(figsize=plt.figaspect(aspect_ratio))
         if mod == 1:
-            X, Y = np.meshgrid(self.x_grid, self.y_grid)
-            plt.pcolormesh(X,Y,self.qvapor)
+            plt.imshow(self.qvapor, origin='lower', aspect='auto')
         else:
             old_qv_shape = self.qvapor.shape
             x_fix = 0 if (int(old_qv_shape[0]/mod)%2 == 0) else 1
@@ -303,7 +410,16 @@ class RiceVapor:
 
             downscaled = resize( qvapor_data,
                                 (qv_shape[0], qv_shape[1]))
-            plt.pcolormesh(X,Y,downscaled)
+            # plt.pcolormesh(X,Y,downscaled)
+            extent = [x_grid[0], x_grid[-1], y_grid[0], y_grid[-1]]
+            plt.imshow(downscaled, extent=extent, origin='lower', aspect='auto')
+        # plt.xlim(0,self.nx)
+        # plt.ylim(0,self.nz)
+        # Set the tick positions and labels for the y-axis
+        # yticks = np.linspace(0, self.nz/mod, 10)  # Example: 4 ticks evenly spaced
+        # # yticklabels = ['W', 'X', 'Y', 'Z']  # Example: Corresponding labels
+        # ax.set_yticks(yticks)
+        # ax.set_yticklabels(yticks)
         plt.colorbar()
         plt.show()
 
