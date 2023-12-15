@@ -9,3 +9,11 @@ Exploring the accurate generation of 3D water vapor fields through the integrati
 
 
 ## Testing
+
+
+## Visualization of Process
+### Set Observation Points and Ray Paths
+![Ob Points and Rays](docs/images/obs_points_and_rays.png)
+
+### Collected Observation Data
+![Ob Points and Rays](docs/images/obs_data.png)
