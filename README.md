@@ -4,7 +4,7 @@ Exploring the accurate generation of 3D water vapor fields through the integrati
 
 
 ## Visualization of Process
-* Water vapor from model input data to mimic data collected from sensors.
+* Water vapor from model input data to mimic environment.
 ![Water Vapor Slice](docs/images/qvapor_env.png)
 
 * Subset of observation points and ray paths.
