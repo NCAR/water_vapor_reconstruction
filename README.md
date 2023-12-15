@@ -12,8 +12,8 @@ Exploring the accurate generation of 3D water vapor fields through the integrati
 
 
 ## Visualization of Process
-### Set Observation Points and Ray Paths
+* Subset of observation points and ray paths.
 ![Ob Points and Rays](docs/images/obs_points_and_rays.png)
 
-### Collected Observation Data
+* Subset of collected observation data along ray paths.
 ![Ob Points and Rays](docs/images/obs_data.png)
