@@ -1,9 +1,16 @@
 # Water Vapor Reconstruction
 
-Exploring the accurate generation of 3D water vapor fields through the integration of line data obtained from overhead sensors.
+Exploring the accurate generation of 3D water vapor fields through the
+integration of line data obtained from overhead sensors.
 
 
-## Visualization of Process
+## Process
+
+### Mimicking Input Data
+The input data will be analogous to taking the line integral of water vapor
+along a ray projecting downward from an observational point above.
+Representing a plane flying over a region collecting data from below.
+
 * Water vapor from model input data to mimic environment.
 ![Water Vapor Slice](docs/images/qvapor_env.png)
 
@@ -13,7 +20,36 @@ Exploring the accurate generation of 3D water vapor fields through the integrati
 * Subset of collected observation data along ray paths.
 ![Ob Points and Rays](docs/images/obs_data.png)
 
-## Python Tool
+* Integrate along each ray path
 
+
+### Reconstruction
+- Given a set number of observation points and rays, gather initial
+  1-dimensional array of line integrals from the environment. This represents
+  the experimential input data.
+- Generate randomized "guess" array and calculate line integrals following the
+  same set of observation points and rays as the previous step.
+- Minimize the difference between the environmental line integrals and the
+  randomized line integrals using the SciPy Optimize minimize function until
+  the randomized "guess" array represents the true environment.
+
+## Python Tool
+### Line Integrals from Enviroment
+```python
+# setup input arguments
+rv_data = xr.open_mfdataset('input_data/qvapor.nc', combine='by_coords')
+num_observations=100
+num_rays=20
+observation_height = len(rv_data.bottom_top) * 0.8
+
+# create object
+rv = RiceVapor(rv_data, num_obs=num_observations, z=observation_height)
+rv.set_num_rays(num_rays)
+
+# compute line integrals
+rv.compute_obs()
+```
 
 ## Testing
+The [example.ipynb](tests/example.ipynb) Jupyterhub Notebook can be found
+under the `tests` directory.
