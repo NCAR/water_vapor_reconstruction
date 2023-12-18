@@ -65,14 +65,17 @@ the environment's water vapor field.
 #### Minimization Steps
 * Coarsen environment and guess array
 * Compute line integrals
-* Find the error
+* Find the error: note the $n$th `envLineIntegral` and `guessLineIntegral` are
+the line integral for the $n$th observation point. `envMean` and `guessMean`
+are one-dimensional arrays the size of the number of rays.
 ```math
 \begin{align}
-envMean=\frac{1}{n} \sum_{n=1}^{numRays} envLineIntegral \\
-guessMean=\frac{1}{n} \sum_{n=1}^{numRays} guessLineIntegral \\
+envMean=\frac{1}{n} \sum_{n=1}^{numRays} envLineIntegral_n \\
+guessMean=\frac{1}{n} \sum_{n=1}^{numRays} guessLineIntegral_n \\
 \frac{1}{n} \sum_{n=1}^{numRays}(envMean-guessMean)^2
 \end{align}
 ```
+
 
 * The `optimize.minimize` method will use different variations of the guess
   array to miminize the error difference between the guess and the
