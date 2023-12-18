@@ -50,6 +50,29 @@ rv.set_num_rays(num_rays)
 rv.compute_obs()
 ```
 
+### Minimization of initial randomized array
+The tool's minimization of initial randomized array process uses the [SciPy Optimization](https://docs.scipy.org/doc/scipy/reference/optimize.html)
+package's [minimize](https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html)
+function.
+The minimize function reduces the difference between the line integral's of
+the environmental data and a randomized arrays.
+The randomized array uses the save observation points and rays as the
+environmental setup.
+As the randomized line integral output approaches the environmental's line
+integral, the theory is that the randomized array will now closely represent
+the environment's water vapor field.
+
+#### Minimization Steps
+* Coarsen environment and guess array
+* Compute line integrals
+* Find the error
+$envMean=\frac{1}{n} \sum_{n=1}^{numRays} envLineIntegral$
+$guessMean=\frac{1}{n} \sum_{n=1}^{numRays} guessLineIntegral$
+$\frac{1}{n} \sum_{n=1}^{numRays}(envMean-guessMean)^2$
+* The `optimize.minimize` method will use different variations of the guess
+  array to miminize the error difference between the guess and the
+  environment.
+
 ## Testing
 The [example.ipynb](tests/example.ipynb) Jupyterhub Notebook can be found
 under the `tests` directory.
