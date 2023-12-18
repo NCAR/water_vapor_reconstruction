@@ -67,9 +67,11 @@ the environment's water vapor field.
 * Compute line integrals
 * Find the error
 ```math
+\begin{align}
 envMean=\frac{1}{n} \sum_{n=1}^{numRays} envLineIntegral \\
 guessMean=\frac{1}{n} \sum_{n=1}^{numRays} guessLineIntegral \\
-\frac{1}{n} \sum_{n=1}^{numRays}(envMean-guessMean)^2 \\
+\frac{1}{n} \sum_{n=1}^{numRays}(envMean-guessMean)^2
+\end{align}
 ```
 
 * The `optimize.minimize` method will use different variations of the guess
