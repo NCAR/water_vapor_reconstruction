@@ -5,8 +5,12 @@ integration of line data obtained from overhead sensors.
 
 
 ## Process
+1. [Mimick input](Mimicking Input Data Line Integrals) data with creation of
+   line integrals created from model water vapor data.
+2. [Reconstruct](Reconstruction) water vapor environment using SciPy's
+   Optimize minimize method.
 
-### Mimicking Input Data
+### Mimicking Input Data Line Integrals
 The input data will be analogous to taking the line integral of water vapor
 along a ray projecting downward from an observational point above.
 Representing a plane flying over a region collecting data from below.
@@ -22,7 +26,6 @@ Representing a plane flying over a region collecting data from below.
 
 * Integrate along each ray path
 
-
 ### Reconstruction
 - Given a set number of observation points and rays, gather initial
   1-dimensional array of line integrals from the environment. This represents
@@ -33,8 +36,7 @@ Representing a plane flying over a region collecting data from below.
   randomized line integrals using the SciPy Optimize minimize function until
   the randomized "guess" array represents the true environment.
 
-## Python Tool
-### Line Integrals from Enviroment
+#### Python Tool: Line Integrals from Enviroment
 ```python
 # setup input arguments
 rv_data = xr.open_mfdataset('input_data/qvapor.nc', combine='by_coords')
@@ -50,7 +52,7 @@ rv.set_num_rays(num_rays)
 rv.compute_obs()
 ```
 
-### Minimization of initial randomized array
+#### Minimization of initial randomized array
 The tool's minimization of initial randomized array process uses the [SciPy Optimization](https://docs.scipy.org/doc/scipy/reference/optimize.html)
 package's [minimize](https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html)
 function.
@@ -62,7 +64,7 @@ As the randomized line integral output approaches the environmental's line
 integral, the theory is that the randomized array will now closely represent
 the environment's water vapor field.
 
-#### Minimization Steps
+##### Minimization Steps
 * Coarsen environment and guess array
 * Compute line integrals
 * Find the error: note the *n*th `envLineIntegral` and `guessLineIntegral` are
