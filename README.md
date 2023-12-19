@@ -74,7 +74,7 @@ are one-dimensional arrays the size of the number of rays.
 \begin{align}
 envMean=\frac{1}{n} \sum_{n=1}^{numObs} envLineIntegral_n \\
 guessMean=\frac{1}{n} \sum_{n=1}^{numObs} guessLineIntegral_n \\
-\frac{1}{n} \sum_{n=1}^{numRays}(envMean-guessMean)^2
+\epsilon=\frac{1}{n} \sum_{n=1}^{numRays}(envMean-guessMean)^2
 \end{align}
 ```
 
