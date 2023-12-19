@@ -45,7 +45,7 @@ num_rays=20
 observation_height = len(rv_data.bottom_top) * 0.8
 
 # create object
-rv = RiceVapor(rv_data, num_obs=num_observations, z=observation_height)
+rv = RayVapor(rv_data, num_obs=num_observations, z=observation_height)
 rv.set_num_rays(num_rays)
 
 # compute line integrals
