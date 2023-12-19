@@ -276,8 +276,8 @@ class RayVapor:
             for j,line in enumerate(qvapor_lines[i,:]):
                 qvapor_integration[j] = simpson(line)
             qvapor_integrations[i,:] = qvapor_integration
-        # self.qvapor_integrations = qvapor_integrations
-        self.qvapor_mean_integration = np.mean(qvapor_integrations, axis=0)
+        self.qvapor_integrations_flat = qvapor_integrations.flatten()
+        # self.qvapor_mean_integration = np.mean(qvapor_integrations, axis=0)
 
     def plot_obs_loc(self):
         for ob in self.obs_loc:
