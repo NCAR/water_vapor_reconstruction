@@ -5,9 +5,9 @@ integration of line data obtained from overhead sensors.
 
 
 ## Process
-1. [Mimick input](Mimicking Input Data Line Integrals) data with creation of
+1. [Mimick input](#mimicking-input-data-line-integrals) data with creation of
    line integrals created from model water vapor data.
-2. [Reconstruct](Reconstruction) water vapor environment using SciPy's
+2. [Reconstruct](#reconstruction) water vapor environment using SciPy's
    Optimize minimize method.
 
 ### Mimicking Input Data Line Integrals
