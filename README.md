@@ -80,7 +80,7 @@ guessMean=\frac{1}{n} \sum_{n=1}^{numObs} guessLineIntegral_n \\
 
 
 * The `optimize.minimize` method will use different variations of the guess
-  array to miminize the error difference between the guess and the
+  array to miminize the error difference $\epsilon$ between the guess and the
   environment.
 
 ## Testing
