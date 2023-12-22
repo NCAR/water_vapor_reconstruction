@@ -6,13 +6,25 @@ from skimage.transform import resize
 import xarray as xr
 
 
+class Camera:
+    def __init__(self, deg_range=40, increment=5):
+        self.setup_angles(deg_range, increment)
+    def setup_angles(self, deg_range, increment):
+        self.deg_range = deg_range
+        self.increment = increment
+        deg_s = 90 - deg_range
+        # self.ray_angles = list(range(deg_s, 91, 5)) + \
+        #     list(range(deg_s, 91-5, 5))[::-1]
+        self.ray_angles = list(range(deg_s, 91+deg_range, 5))
+
+
 class RayVapor:
     """
     A class used to hold an object for calculating water vapor line integrals
     from model data to test reproduction.
     """
 
-    def __init__(self, qvapor, num_obs, z, y=0, time=-1, num_rays=0):
+    def __init__(self, qvapor, camera, num_obs, z, y=0, time=-1):
         """
         Parameters
         ----------
@@ -22,9 +34,11 @@ class RayVapor:
         y: (default is 0)
         time: time step to retrieve input from dataset or dataarray
               (default is -1)
-        num_rays: (default is 0)
+        num_rays: (default is
         """
-        self.set_rays(num_rays)
+        # self.set_rays(num_rays)
+        self.camera = camera
+        self.set_num_rays(camera)
         self.set_qvapor(qvapor, y, time)
         self.set_domain(num_obs, z, y)
         # set defaults that will fail without being updated
@@ -145,19 +159,12 @@ class RayVapor:
         self.obs_computed = False
 
 
-    def set_num_rays(self, num_rays):
+    def set_num_rays(self, camera):
         """
 
         """
-        if num_rays == None and self.num_rays <= 0:
-            print("warning: num_rays <= 0, defaulting to target size",
-                  self.target_size, "if odd")
-            num_rays = self.target_size
-        if num_rays == None:
-            return
-        if num_rays%2 == 0: # this needs to be odd
-            num_rays -= 1
-        self.num_rays = num_rays
+        self.num_rays = len(camera.ray_angles)
+        self.ray_angles = camera.ray_angles
 
     def compute_ob_line(self, ob_i, ob_location):
         # print("COMPUTE_OB_LINE():121")
@@ -165,18 +172,23 @@ class RayVapor:
         qvapor_line = np.zeros((self.num_rays, self.max_ob_z+1))
         # print("QVAPORLINESHAPE", qvapor_line.shape)
         # for every ray, find angle and length of ray
-        for j, x in enumerate(np.linspace(self.target_x_start,
-                                          self.target_x_end,
-                                          self.num_rays)):
+        # for j, x in enumerate(np.linspace(self.target_x_start,
+        #                                   self.target_x_end,
+        #                                   self.num_rays)):
+        for j in range(self.num_rays):
+            if self.compute_lines[ob_i,j] == False:
+                continue
             ob_z = int(ob_location[2])
-            direction = x - ob_x
+            # direction = self.qvapor_x[j] - ob_x
             angle = self.ray_angles[ob_i,j]
             for i in range(ob_z):
                 x_seg = i / math.tan(math.radians(angle))
-                if (direction > 0):
-                    xx = round(ob_x + x_seg)
-                else:
-                    xx = round(ob_x - x_seg)
+                xx = round(ob_x + x_seg)
+                # if (direction > 0):
+                #     xx = round(ob_x + x_seg)
+                # else:
+                #     xx = round(ob_x - x_seg)
+                # print("XX=",xx)
                 zz = round(ob_z)
                 # print("qvapor shape", self.qvapor.shape, "zz", zz, "xx", xx)
                 # print("qvapor_line shape", qvapor_line.shape, "j", j, "i", i)
@@ -192,30 +204,45 @@ class RayVapor:
         qvapor_line = np.zeros((self.num_rays, self.max_ob_z+1))
         qvapor_x = np.zeros((self.num_rays, self.max_ob_z+1))
         qvapor_z = np.zeros((self.num_rays, self.max_ob_z+1))
-        angles = np.zeros(self.num_rays)
         lengths = np.zeros(self.num_rays)
-
+        compute_line = np.ones(self.num_rays, dtype=bool)
+        x_max_range = self.qvapor.shape[1]
         # for every ray, find angle and length of ray
-        for j, x in enumerate(np.linspace(self.target_x_start,
-                                          self.target_x_end,
-                                          self.num_rays)):
+        # for j, x in enumerate(np.linspace(self.target_x_start,
+        #                                   self.target_x_end,
+        #                                   self.num_rays)):
+        # FOO: todo, save direction calc
+        midpoint = self.num_rays // 2
+        # direction = np.zeros(self.num_rays)
+        # direction[:midpoint] = 1
+        # direction[midpoint:] = -1
+        # print("---- dir", direction)
+        for j in range(self.num_rays):
             ob_z = int(ob_location[2])
-            destination = np.array([x, ob_y, 0])
-            direction = (destination - ob_location)
-            length = self.len_of_line(ob_location[0], ob_location[1], ob_location[2],
-                                      destination[0], destination[1], destination[2])
-            angle = np.arcsin(ob_z/length)* 180 / np.pi   # upper-left or angle, when past 90 upper-right
-            lengths[j] = length
-            angles[j] = angle
+            # --- new way, set angles then figure the others
+            angle = self.ray_angles[j]
+            length = ob_z / np.sin((angle * np.pi) / 180)
 
+            # --- old way
+            # destination = np.array([x, ob_y, 0])
+            # direction = (destination - ob_location)
+            # length = self.len_of_line(ob_location[0], ob_location[1], ob_location[2],
+            #                           destination[0], destination[1], destination[2])
+            # angle = np.arcsin(ob_z/length)* 180 / np.pi   # upper-left or angle, when past 90 upper-right
+            lengths[j] = length
+            # print("DIRECTION[0]=",direction[0])
             for i in range(ob_z):
                 #l_seg = i / math.sin(math.radians(a))
                 x_seg = i / math.tan(math.radians(angle))
-                if (direction[0] > 0):
-                    xx = round(ob_x + x_seg)
-                else:
-                    xx = round(ob_x - x_seg)
+                xx = round(ob_x + x_seg)
+                # if (direction[0] > 0):
+                #     xx = round(ob_x + x_seg)
+                # else:
+                #     xx = round(ob_x - x_seg)
                 zz = round(ob_z)
+                if ((xx < 0) or (xx >= x_max_range)):
+                    compute_line[j] = False
+                    break
                 qvapor_data = self.qvapor[zz,xx]
                 # if j%plot_mod == 0:
                 #     s = ax2.scatter(xx,zz,c=norm(qvapor_data), cmap='viridis',vmin=0, vmax=1, s=8)
@@ -223,7 +250,7 @@ class RayVapor:
                 qvapor_x[j, i] = xx
                 qvapor_z[j, i] = zz
                 ob_z -= 1
-        return qvapor_line, qvapor_x, qvapor_z, lengths, angles
+        return qvapor_line, qvapor_x, qvapor_z, lengths, compute_line
 
 
     def compute_obs(self):
@@ -246,8 +273,9 @@ class RayVapor:
                                  self.max_ob_z+1))
             ray_lengths = np.zeros((self.num_obs,
                                     self.num_rays))
-            ray_angles = np.zeros((self.num_obs,
-                                   self.num_rays))
+            compute_lines = np.zeros((self.num_obs,
+                                      self.num_rays),
+                                     dtype = bool)
 
         qvapor_lines = np.zeros((self.num_obs,
                                  self.num_rays,
@@ -257,11 +285,11 @@ class RayVapor:
             print("- first compute, angles being saved for future computation")
             for i, ob_loc in enumerate(self.obs_loc):
                 qvapor_lines[i], qvapor_x[i], qvapor_z[i], ray_lengths[i], \
-                    ray_angles[i] = self.compute_ob(i, ob_loc)
+                    compute_lines[i] = self.compute_ob(i, ob_loc)
             self.qvapor_x = qvapor_x
             self.qvapor_z = qvapor_z
             self.ray_lengths = ray_lengths
-            self.ray_angles = ray_angles
+            self.compute_lines = compute_lines
             self.obs_computed = True
         else:
             for i, ob_loc in enumerate(self.obs_loc):
