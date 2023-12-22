@@ -319,14 +319,10 @@ class RayVapor:
     def plot_obs(self, ob_mod=1, ray_mod=1, z_mod=4):
         aspect_ratio = self.qvapor.shape[0] / self.qvapor.shape[1]
         fig, ax = plt.subplots(figsize=plt.figaspect(aspect_ratio))
-        for ob in range(self.num_obs):
-            for ray in range(self.num_rays):
-                for z in range(len(self.qvapor_lines[ob,ray,:])):
-                    if (ob%ob_mod == 0 and ray%ray_mod == 0 and z%z_mod == 0):
-                        ax.scatter(self.qvapor_x[ob,ray,z],
-                                   self.qvapor_z[ob,ray,z],
-                                   c=self.norm(self.qvapor_lines[ob,ray,z]),
-                                   cmap='viridis',vmin=0, vmax=1, s=8)
+        ax.scatter(self.qvapor_x.flat,
+                   self.qvapor_z.flat,
+                   c=self.norm(self.qvapor_lines.flat),
+                   cmap='viridis',vmin=0, vmax=1, s=8)
         plt.title("Observation Data")
         plt.show()
 
