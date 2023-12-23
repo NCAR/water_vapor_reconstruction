@@ -3,8 +3,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.integrate import simpson
 from skimage.transform import resize
+import sys
+import time
 import xarray as xr
-
 
 class Camera:
     def __init__(self, deg_range=40, increment=5):
@@ -69,12 +70,38 @@ class RayVapor:
         self.num_rays = rv.num_rays
         self.target_x_start = rv.target_x_start
         self.target_x_end = rv.target_x_end
+        self.qvapor_x = rv.qvapor_x
+        self.qvapor_z = rv.qvapor_z
         self.max_ob_z = rv.max_ob_z
+        self.lines_computed = rv.lines_computed
         self.norm = rv.norm
         self.obs_computed = True
 
+
+
+    def guess_setup(self, method='average_vertical_profile_from_obs', mod=10, plot=True):
+        mod_nx = round(self.nx / mod)
+        mod_nz = round(self.nz / mod)
+
+        if method == 'average_vertical_profile_from_obs':
+            qv_guess = np.mean(np.mean(self.qvapor, axis=1).reshape(mod_nz,mod), axis=1)[:,np.newaxis].repeat(mod_nx, axis=1)
+
+        if (plot == True):
+            plt.imshow(qv_guess,origin='lower')
+            plt.title('qv guess')
+            plt.show()
+
+        self.mod_nx = mod_nx
+        self.mod_nz = mod_nz
+        self.qv_guess = qv_guess
+        # qv_guess needs to be one dimensional for the SciPy Minimize method
+        qv_guess = qv_guess.flatten()
+        return qv_guess, mod_nx, mod_nz
+
+
     def len_of_line(self, x0, y0, z0, x1, y1, z1):
         return math.sqrt((x1-x0)**2 + (y1-y0)**2 + (z1-z0)**2)
+
 
     def prep_domain_input(self, qvapor, y, time):
         qvapor_t = str(type(qvapor))
@@ -170,31 +197,41 @@ class RayVapor:
         # print("COMPUTE_OB_LINE():121")
         ob_x = int(ob_location[0])
         qvapor_line = np.zeros((self.num_rays, self.max_ob_z+1))
-        # print("QVAPORLINESHAPE", qvapor_line.shape)
-        # for every ray, find angle and length of ray
-        # for j, x in enumerate(np.linspace(self.target_x_start,
-        #                                   self.target_x_end,
-        #                                   self.num_rays)):
-        for j in range(self.num_rays):
-            if self.compute_lines[ob_i,j] == False:
-                continue
-            ob_z = int(ob_location[2])
-            # direction = self.qvapor_x[j] - ob_x
-            angle = self.ray_angles[ob_i,j]
-            for i in range(ob_z):
-                x_seg = i / math.tan(math.radians(angle))
-                xx = round(ob_x + x_seg)
-                # if (direction > 0):
-                #     xx = round(ob_x + x_seg)
-                # else:
-                #     xx = round(ob_x - x_seg)
-                # print("XX=",xx)
-                zz = round(ob_z)
-                # print("qvapor shape", self.qvapor.shape, "zz", zz, "xx", xx)
-                # print("qvapor_line shape", qvapor_line.shape, "j", j, "i", i)
-                qvapor_line[j, i] = self.qvapor[zz,xx]
-                ob_z -= 1
-        return qvapor_line
+        qvapor_line_final = np.zeros((self.num_rays, self.max_ob_z+1))
+        ob_z = int(ob_location[2])
+
+        # fastest
+        qvapor_line[:, :ob_z] = self.qvapor[self.qvapor_z[ob_i,:,:ob_z],self.qvapor_x[ob_i,:,:ob_z]]
+        qvapor_line_final[self.lines_computed[ob_i]] = qvapor_line[self.lines_computed[ob_i]]
+
+        return qvapor_line_final
+
+        # faster
+        # for ray_j in range(self.num_rays):
+        #     if self.lines_computed[ob_i,ray_j] == False:
+        #         continue
+        #     ob_z = int(ob_location[2])
+
+        #     ### ob_z = 49 vs thirds dimension being size 50, ok?
+        #     # qvapor_line[ray_j,:] = self.qvapor[self.qvapor_z[ob_i,ray_j,:],self.qvapor_x[ob_i,ray_j,:]]
+        #     qvapor_line[ray_j, :ob_z] = self.qvapor[self.qvapor_z[ob_i,ray_j,:ob_z],self.qvapor_x[ob_i,ray_j,:ob_z]]
+
+        # return qvapor_line
+
+        # slowest
+        # for j in range(self.num_rays):
+        #     if self.lines_computed[ob_i,j] == False:
+        #         continue
+
+        #     ob_z = int(ob_location[2])
+        #     angle = self.ray_angles[j]
+        #     for i in range(ob_z):
+        #         x_seg = i / math.tan(math.radians(angle))
+        #         xx = round(ob_x + x_seg)
+        #         zz = round(ob_z)
+        #         qvapor_line[j, i] = self.qvapor[zz,xx]
+        #         ob_z -= 1
+        # return qvapor_line
 
 
     def compute_ob(self, ob_i, ob_location):
@@ -202,8 +239,8 @@ class RayVapor:
         ob_y = int(ob_location[1])
 
         qvapor_line = np.zeros((self.num_rays, self.max_ob_z+1))
-        qvapor_x = np.zeros((self.num_rays, self.max_ob_z+1))
-        qvapor_z = np.zeros((self.num_rays, self.max_ob_z+1))
+        qvapor_x = np.zeros((self.num_rays, self.max_ob_z+1), dtype=int)
+        qvapor_z = np.zeros((self.num_rays, self.max_ob_z+1), dtype=int)
         lengths = np.zeros(self.num_rays)
         compute_line = np.ones(self.num_rays, dtype=bool)
         x_max_range = self.qvapor.shape[1]
@@ -273,7 +310,7 @@ class RayVapor:
                                  self.max_ob_z+1))
             ray_lengths = np.zeros((self.num_obs,
                                     self.num_rays))
-            compute_lines = np.zeros((self.num_obs,
+            lines_computed = np.zeros((self.num_obs,
                                       self.num_rays),
                                      dtype = bool)
 
@@ -285,15 +322,20 @@ class RayVapor:
             print("- first compute, angles being saved for future computation")
             for i, ob_loc in enumerate(self.obs_loc):
                 qvapor_lines[i], qvapor_x[i], qvapor_z[i], ray_lengths[i], \
-                    compute_lines[i] = self.compute_ob(i, ob_loc)
-            self.qvapor_x = qvapor_x
-            self.qvapor_z = qvapor_z
+                    lines_computed[i] = self.compute_ob(i, ob_loc)
+            self.qvapor_x = qvapor_x.astype(int)
+            self.qvapor_z = qvapor_z.astype(int)
             self.ray_lengths = ray_lengths
-            self.compute_lines = compute_lines
+            self.lines_computed = lines_computed
             self.obs_computed = True
         else:
+            # start_t = time.time()
             for i, ob_loc in enumerate(self.obs_loc):
                 qvapor_lines[i] = self.compute_ob_line(i, ob_loc)
+            # end_t = time.time()
+            # print(end_t-start_t)
+            # print(qvapor_lines)
+            # sys.exit()
 
         self.qvapor_lines = qvapor_lines
 
