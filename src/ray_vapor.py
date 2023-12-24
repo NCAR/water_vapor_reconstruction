@@ -200,6 +200,13 @@ class RayVapor:
         qvapor_line_final = np.zeros((self.num_rays, self.max_ob_z+1))
         ob_z = int(ob_location[2])
 
+        # --- notes on variable dimension ---
+        # lines computed: num_obs, rays
+        # qvapor_z      : obz, rayz, level
+        # qvapor_line   : rays, max_ob_z+1
+        # qvapor        : z by x
+        # note for the future: the level dimension may be able to be removed
+
         # fastest
         qvapor_line[:, :ob_z] = self.qvapor[self.qvapor_z[ob_i,:,:ob_z],self.qvapor_x[ob_i,:,:ob_z]]
         qvapor_line_final[self.lines_computed[ob_i]] = qvapor_line[self.lines_computed[ob_i]]
