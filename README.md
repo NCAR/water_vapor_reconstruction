@@ -82,7 +82,7 @@ the environment's water vapor field.
 the values of the line integral from every observation point and every one of its rays.
 ```math
 \begin{align}
-\epsilon=\frac{1}{n} \sum_{n=1}^{numObs \cdot numRays}(envLineIntegrals_n-guessLineIntegrals_n)^2
+\epsilon=\frac{1}{n} \sum_{n=1}^{numObs \times numRays}(envLineIntegrals_n-guessLineIntegrals_n)^2
 \end{align}
 ```
 
