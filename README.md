@@ -18,8 +18,9 @@ Representing a plane flying over a region collecting data from below.
 * Water vapor from model input data to mimic environment.
 ![Water Vapor Slice](docs/images/qvapor_env.png)
 
-* Subset of observation points and ray paths.
-![Ob Points and Rays](docs/images/obs_points_and_rays.png)
+<!-- this Python method needs to be update to the new camera ray -->
+<!-- * Subset of observation points and ray paths. -->
+<!-- ![Ob Points and Rays](docs/images/obs_points_and_rays.png) -->
 
 * Subset of collected observation data along ray paths.
 ![Ob Points and Rays](docs/images/obs_data.png)
@@ -67,17 +68,13 @@ the environment's water vapor field.
 ##### Minimization Steps
 * Coarsen environment and guess array
 * Compute line integrals
-* Find the error: note the *n*th `envLineIntegral` and `guessLineIntegral` are
-the line integral for the *n*th observation point. `envMean` and `guessMean`
-are one-dimensional arrays the size of the number of rays.
+* Find the error: the line integrals variables are flattened arrays that hold
+the values of the line integral from every observation point and every one of its rays.
 ```math
 \begin{align}
-envMean=\frac{1}{n} \sum_{n=1}^{numObs} envLineIntegral_n \\
-guessMean=\frac{1}{n} \sum_{n=1}^{numObs} guessLineIntegral_n \\
-\epsilon=\frac{1}{n} \sum_{n=1}^{numRays}(envMean_n-guessMean_n)^2
+\epsilon=\frac{1}{n} \sum_{n=1}^{numObs \cdot numRays}(envLineIntegrals_n-guessLineIntegrals_n)^2
 \end{align}
 ```
-
 
 * The `optimize.minimize` method will use different variations of the guess
   array to miminize the error difference $\epsilon$ between the guess and the
