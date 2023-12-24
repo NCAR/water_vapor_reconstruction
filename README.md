@@ -31,11 +31,21 @@ Representing a plane flying over a region collecting data from below.
 - Given a set number of observation points and rays, gather initial
   1-dimensional array of line integrals from the environment. This represents
   the experimential input data.
-- Generate randomized "guess" array and calculate line integrals following the
-  same set of observation points and rays as the previous step.
+- Generate randomized "guess" array on a coarsened grid. Calculate line
+  integrals following the same set of observation points and rays as the
+  previous step.
 - Minimize the difference between the environmental line integrals and the
   randomized line integrals using the SciPy Optimize minimize function until
   the randomized "guess" array represents the true environment.
+
+#### Plots of Reconstruction
+- Coarsened environment
+![Coarsened environment](docs/images/coarsened_env.png)
+- Initial result after minimization of coarsened guess array:
+![Minization result](docs/images/recreation_pre.png)
+- Postprocess the higher elevations where the rays don't cover
+![Postprocessed result](docs/images/recreation_post.png)
+
 
 #### Python Tool: Line Integrals from Enviroment
 ```python
@@ -79,6 +89,7 @@ the values of the line integral from every observation point and every one of it
 * The `optimize.minimize` method will use different variations of the guess
   array to miminize the error difference $\epsilon$ between the guess and the
   environment.
+
 
 ## Testing
 The [example.ipynb](tests/example.ipynb) Jupyterhub Notebook can be found
