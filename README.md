@@ -1,7 +1,8 @@
 # Water Vapor Reconstruction
 
-Exploring the accurate generation of 3D water vapor fields through the
-integration of line data obtained from overhead sensors.
+Tomographic reconstruction of water vapor line integrals using mathematical minimization methods.
+Generation of the 2D (in the future 3D) water vapor fields are obtained by
+minimizing random line integrals and line integrals obtained from overhead sensors.
 
 
 ## Process
@@ -94,3 +95,5 @@ the values of the line integral from every observation point and every one of it
 ## Testing
 The [example.ipynb](tests/example.ipynb) Jupyterhub Notebook can be found
 under the `tests` directory.
+
+

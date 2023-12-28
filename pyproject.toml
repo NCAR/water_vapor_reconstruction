@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "Water Vapor Reconstruction"
+description = "Tomographic reconstruction of water vapor line integrals using mathematical minimization methods."
+version = "2024.0.0"
+readme = "README.md"
+authors = [
+  {name = "Soren Rasmussen", email = "soren@ncar.com"},
+  {name = "Ethan Gutmann", email = "gutmann@ncar.com"},
+]
+
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "License :: OSI Approved :: MIT License",
+]
+
+[project.urls]
+Repository = "git@github.com:NCAR/water_vapor_reconstruction.git"
+
+dependencies = [
+  python = ">3.10.0",
+  matplotlib = ">3.7.0",
+  numpy = ">1.21.0",
+  scipy = ">1.7.0",
+  scikit-image = ">0.20.0",
+  xarray = ">2023.0.0"
+]
+
