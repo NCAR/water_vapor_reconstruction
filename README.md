@@ -1,20 +1,20 @@
 # Water Vapor Reconstruction
 
-Tomographic reconstruction of water vapor line integrals using mathematical minimization methods.
-Generation of the 2D (in the future 3D) water vapor fields are obtained by
-minimizing random line integrals and line integrals obtained from overhead sensors.
+This work tests tomographic reconstruction of water vapor fields using mathematical minimization methods.
+The generation of the 2D (in the future 3D) water vapor fields are obtained by using optimization algorithms to search
+the space of all possible 2D fields while minimizing the differences between integrated water vapor obtained from overhead sensors as an Observing System Simulation Experiment (OSSE).
 
 
 ## Process
 1. [Mimick input](#mimicking-input-data-line-integrals) data with creation of
-   line integrals created from model water vapor data.
+   line integrals along rays from the sensor using water vapor created from and atmospheric model.
 2. [Reconstruct](#reconstruction) water vapor environment using SciPy's
    Optimize minimize method.
 
 ### Mimicking Input Data Line Integrals
 The input data will be analogous to taking the line integral of water vapor
-along a ray projecting downward from an observational point above.
-Representing a plane flying over a region collecting data from below.
+along a ray projecting along a path from an observational point above.
+This represents a plane flying over a region collecting imaging data below.
 
 * Water vapor from model input data to mimic environment.
 ![Water Vapor Slice](docs/images/qvapor_env.png)
@@ -29,15 +29,15 @@ Representing a plane flying over a region collecting data from below.
 * Integrate along each ray path
 
 ### Reconstruction
-- Given a set number of observation points and rays, gather initial
+- Given a set number of observation points (images) and corresponding rays, gather initial
   1-dimensional array of line integrals from the environment. This represents
-  the experimential input data.
-- Generate randomized "guess" array on a coarsened grid. Calculate line
+  the experimental input data.
+- Generate semi-random "guess" array on a coarsened grid. Calculate line
   integrals following the same set of observation points and rays as the
   previous step.
 - Minimize the difference between the environmental line integrals and the
-  randomized line integrals using the SciPy Optimize minimize function until
-  the randomized "guess" array represents the true environment.
+  randomized line integrals using the SciPy Optimize minimize function until the objective function applied to
+  the optimized "guess" array converges on a representation of the true environment.
 
 #### Plots of Reconstruction
 - Coarsened environment
@@ -48,7 +48,7 @@ Representing a plane flying over a region collecting data from below.
 ![Postprocessed result](docs/images/recreation_post.png)
 
 
-#### Python Tool: Line Integrals from Enviroment
+#### Python Tool Example: Line Integrals from Enviroment
 ```python
 # setup input arguments
 rv_data = xr.open_mfdataset('input_data/qvapor.nc', combine='by_coords')
